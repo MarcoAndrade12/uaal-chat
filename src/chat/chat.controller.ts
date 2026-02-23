@@ -1,0 +1,23 @@
+
+import { Controller, Post, Get, Body, Param } from '@nestjs/common';
+import { ChatService } from './chat.service';
+
+@Controller('chat')
+export class ChatController {
+  constructor(private readonly chatService: ChatService) {}
+
+  @Post('conversation')
+  createConversation(@Body('clientId') clientId: string, @Body('clientName') clientName?: string) {
+    return this.chatService.createConversation(clientId, clientName);
+  }
+
+  @Get('conversations')
+  findAll() {
+    return this.chatService.findAll();
+  }
+
+  @Get('conversation/:id')
+  getConversation(@Param('id') id: string) {
+    return this.chatService.findConversation(id);
+  }
+}

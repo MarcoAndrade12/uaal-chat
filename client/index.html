@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA Chat System</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 20px; background: #f0f2f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; margin: 5px; }
+        button:hover { background: #0056b3; }
+        button.secondary { background: #6c757d; }
+        button.danger { background: #dc3545; }
+        input, textarea, select { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .hidden { display: none; }
+        .role-btn { width: 100%; margin: 10px 0; padding: 15px; font-size: 1.2em; }
+        
+        /* Chat Styles */
+        #chat-history { height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; background: #fafafa; border-radius: 4px; }
+        .message { margin-bottom: 10px; padding: 8px 12px; border-radius: 12px; max-width: 70%; word-wrap: break-word; }
+        .message.client { background: #007bff; color: white; align-self: flex-end; margin-left: auto; }
+        .message.ai { background: #e9ecef; color: black; align-self: flex-start; }
+        .message.attendant { background: #28a745; color: white; align-self: flex-start; }
+        .message-meta { font-size: 0.75em; opacity: 0.8; margin-bottom: 2px; }
+
+        /* Lists */
+        .list-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .list-item:hover { background: #f8f9fa; }
+        
+        /* Admin */
+        .tab-nav { display: flex; margin-bottom: 20px; border-bottom: 1px solid #ddd; }
+        .tab-nav button { background: none; color: #666; border-radius: 0; margin: 0; }
+        .tab-nav button.active { border-bottom: 2px solid #007bff; color: #007bff; font-weight: bold; }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+<div class="container" id="app">
+    <!-- 1. Role Selection -->
+    <div id="role-selection">
+        <h1>Bem-vindo ao IA Chat</h1>
+        <p>Selecione seu acesso:</p>
+        <button class="role-btn" onclick="app.selectRole('client')">Cliente</button>
+        <button class="role-btn secondary" onclick="app.selectRole('attendant')">Atendente</button>
+        <button class="role-btn danger" onclick="app.selectRole('admin')">Admin</button>
+    </div>
+
+    <!-- 2. Client View -->
+    <div id="client-view" class="hidden">
+        <h2>Área do Cliente</h2>
+        <div id="client-login">
+            <label>Seu ID (Email ou Nome):</label>
+            <input type="text" id="client-id-input" placeholder="ex: usuario@email.com">
+            <button onclick="app.startClientChat()">Iniciar Chat</button>
+        </div>
+        <div id="client-chat-interface" class="hidden">
+            <div id="chat-history"></div>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="message-input" placeholder="Digite sua mensagem..." onkeypress="app.handleEnter(event)">
+                <button onclick="app.sendMessage()">Enviar</button>
+            </div>
+            <button class="secondary" onclick="app.leaveChat()" style="margin-top: 10px;">Sair</button>
+        </div>
+        <button class="secondary" onclick="app.reset()">Voltar</button>
+    </div>
+
+    <!-- 3. Attendant View -->
+    <div id="attendant-view" class="hidden">
+        <h2>Área do Atendente</h2>
+        <div id="attendant-list" class="hidden">
+            <h3>Conversas Ativas</h3>
+            <button onclick="app.loadConversations()">Atualizar Lista</button>
+            <div id="conversations-list"></div>
+        </div>
+        <div id="attendant-chat-interface" class="hidden">
+            <h3>Chat: <span id="current-chat-client"></span></h3>
+            <div id="attendant-chat-history" style="height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fafafa;"></div>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <input type="text" id="attendant-message-input" placeholder="Intervir na conversa..." onkeypress="app.handleAttendantEnter(event)">
+                <button onclick="app.sendAttendantMessage()">Enviar</button>
+            </div>
+            <button class="secondary" onclick="app.closeAttendantChat()" style="margin-top: 10px;">Voltar para Lista</button>
+        </div>
+        <button class="secondary" onclick="app.reset()">Sair</button>
+    </div>
+
+    <!-- 4. Admin View -->
+    <div id="admin-view" class="hidden">
+        <h2>Painel Admin</h2>
+        <div class="tab-nav">
+            <button onclick="app.showAdminTab('conversations')" id="tab-conv" class="active">Conversas</button>
+            <button onclick="app.showAdminTab('prompts')" id="tab-prompts">Prompts IA</button>
+        </div>
+
+        <!-- Admin: Conversations -->
+        <div id="admin-conversations">
+            <h3>Monitoramento de Conversas</h3>
+            <button onclick="app.loadConversations()">Atualizar</button>
+            <div id="admin-conversations-list"></div>
+        </div>
+
+        <!-- Admin: Prompts -->
+        <div id="admin-prompts" class="hidden">
+            <h3>Gerenciar Prompts</h3>
+            <button onclick="app.showCreatePrompt()">+ Novo Prompt</button>
+            <div id="prompts-list"></div>
+            
+            <div id="prompt-form" class="hidden" style="margin-top: 20px; border: 1px solid #ccc; padding: 15px;">
+                <h4 id="form-title">Novo Prompt</h4>
+                <input type="hidden" id="prompt-id">
+                <input type="text" id="prompt-title" placeholder="Título do Prompt">
+                <textarea id="prompt-content" rows="5" placeholder="Conteúdo do Prompt (System Message)"></textarea>
+                <label>
+                    <input type="checkbox" id="prompt-active"> Ativo
+                </label>
+                <div style="margin-top: 10px;">
+                    <button onclick="app.savePrompt()">Salvar</button>
+                    <button class="secondary" onclick="app.cancelPrompt()">Cancelar</button>
+                </div>
+            </div>
+        </div>
+        <button class="secondary" onclick="app.reset()" style="margin-top: 20px;">Sair</button>
+    </div>
+</div>
+
+<script>
+const API_URL = 'http://localhost:3000';
+
+const app = {
+    socket: null,
+    role: null,
+    currentConversationId: null,
+    clientId: null,
+
+    init() {
+        this.socket = io(API_URL);
+        
+        this.socket.on('message', (message) => {
+            this.appendMessage(message);
+        });
+    },
+
+    selectRole(role) {
+        this.role = role;
+        document.getElementById('role-selection').classList.add('hidden');
+        document.getElementById(`${role}-view`).classList.remove('hidden');
+        
+        if (role === 'attendant' || role === 'admin') {
+            document.getElementById('attendant-list').classList.remove('hidden'); // For attendant
+            this.loadConversations();
+            if (role === 'admin') this.loadPrompts();
+        }
+    },
+
+    reset() {
+        this.role = null;
+        this.currentConversationId = null;
+        document.querySelectorAll('.container > div').forEach(div => div.classList.add('hidden'));
+        document.getElementById('role-selection').classList.remove('hidden');
+        // socket disconnect/reconnect logic if needed
+    },
+
+    /* --- CLIENT LOGIC --- */
+    async startClientChat() {
+        const clientId = document.getElementById('client-id-input').value;
+        if (!clientId) return alert('Digite um ID');
+        
+        this.clientId = clientId;
+        // Create conversation API
+        try {
+            const res = await fetch(`${API_URL}/chat/conversation`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientId })
+            });
+            const data = await res.json();
+            this.currentConversationId = data.id;
+            
+            document.getElementById('client-login').classList.add('hidden');
+            document.getElementById('client-chat-interface').classList.remove('hidden');
+            
+            this.joinSocketRoom(data.id);
+            this.loadMessages(data.id, 'chat-history');
+        } catch (e) {
+            console.error(e);
+            alert('Erro ao iniciar chat');
+        }
+    },
+
+    joinSocketRoom(conversationId) {
+        this.socket.emit('joinConversation', { conversationId });
+    },
+
+    handleEnter(e) { if(e.key === 'Enter') this.sendMessage(); },
+
+    sendMessage() {
+        const input = document.getElementById('message-input');
+        const content = input.value;
+        if (!content) return;
+
+        this.socket.emit('sendMessage', {
+            conversationId: this.currentConversationId,
+            content: content,
+            sender: 'client'
+        });
+        input.value = '';
+    },
+
+    leaveChat() {
+        this.currentConversationId = null;
+        document.getElementById('client-chat-interface').classList.add('hidden');
+        document.getElementById('client-login').classList.remove('hidden');
+    },
+
+    /* --- SHARED CHAT LOGIC --- */
+    appendMessage(msg) {
+        // Appends to BOTH views if active
+        // Only append if it belongs to current conversation
+        if (msg.conversation && msg.conversation.id !== this.currentConversationId) return; // Note: WebSocket msg might not have full conversation obj, need to check structure.
+        // Actually the backend emits just the message object. Let's assume msg.conversationId or similar.
+        // Wait, backend: this.server.to(data.conversationId).emit('message', message);
+        // Message entity has conversationId.
+        
+        if (this.currentConversationId && msg.conversationId === this.currentConversationId) {
+             const div = document.createElement('div');
+             div.className = `message ${msg.sender}`;
+             div.innerHTML = `<div class="message-meta">${msg.sender.toUpperCase()}</div>${msg.content}`;
+             
+             if (this.role === 'client') {
+                 const container = document.getElementById('chat-history');
+                 container.appendChild(div);
+                 container.scrollTop = container.scrollHeight;
+             } else {
+                 const container = document.getElementById('attendant-chat-history');
+                 if( !container.classList.contains('hidden')) {
+                     container.appendChild(div.cloneNode(true));
+                     container.scrollTop = container.scrollHeight;
+                 }
+                 // If simulated specific chat container... reusing checks
+             }
+        }
+    },
+    
+    async loadMessages(conversationId, containerId) {
+         try {
+            const res = await fetch(`${API_URL}/chat/conversation/${conversationId}`);
+            const data = await res.json();
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            // Sort by date just in case
+            const messages = data.messages || []; // Backend already sorts
+            
+            messages.forEach(msg => {
+                const div = document.createElement('div');
+                div.className = `message ${msg.sender}`;
+                div.innerHTML = `<div class="message-meta">${msg.sender.toUpperCase()}</div>${msg.content}`;
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+         } catch(e) { console.error(e); }
+    },
+
+    /* --- ATTENDANT/ADMIN --- */
+    async loadConversations() {
+        try {
+            const res = await fetch(`${API_URL}/chat/conversations`);
+            const conversations = await res.json();
+            
+            const listId = this.role === 'admin' ? 'admin-conversations-list' : 'conversations-list';
+            const container = document.getElementById(listId);
+            container.innerHTML = '';
+
+            conversations.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `
+                    <div>
+                        <strong>Cliente:</strong> ${c.clientId} <br>
+                        <small>Status: ${c.status} | Data: ${new Date(c.createdAt).toLocaleDateString()}</small>
+                    </div>
+                    <div>
+                        <button onclick="app.openAttendantChat('${c.id}', '${c.clientId}')">Abrir</button>
+                        ${this.role === 'admin' ? `<button class="secondary" onclick="app.summarize('${c.id}')">Resumo</button>` : ''}
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        } catch (e) { console.error(e); }
+    },
+
+    openAttendantChat(conversationId, clientId) {
+        this.currentConversationId = conversationId;
+        document.getElementById('current-chat-client').innerText = clientId;
+        
+        // Hide list, show chat
+        if (this.role === 'attendant') {
+            document.getElementById('attendant-list').classList.add('hidden');
+            document.getElementById('attendant-chat-interface').classList.remove('hidden');
+        } else {
+            // Admin reusing attendant chat interface for simplicity, or create separate. 
+            // Let's reuse attendant-view parts or dynamic modal.
+            // For simplicity in this "arquivo baixo", let's misuse the attendant view slightly or clone logic.
+            // Actually, admin usually just monitors. But let's allow intervention.
+             document.getElementById('admin-conversations').classList.add('hidden');
+             document.getElementById('attendant-chat-interface').classList.remove('hidden');
+             // Move attendant chat interface to be visible globally or just append?
+             // It's inside attendant-view. I'll just unhide it and hide admin-view temporarily? No, standard DOM structure.
+             // I will append the chat interface to admin view dynamically or just allow admin to switch to attendant mode.
+             // Easier: Just alert 'Role switched to Attendant for chat'.
+             // Or better: Re-use the UI.
+             document.getElementById('admin-view').classList.add('hidden');
+             document.getElementById('attendant-view').classList.remove('hidden');
+             document.getElementById('attendant-list').classList.add('hidden');
+        }
+
+        this.joinSocketRoom(conversationId);
+        this.loadMessages(conversationId, 'attendant-chat-history');
+    },
+
+    closeAttendantChat() {
+        this.currentConversationId = null;
+        document.getElementById('attendant-chat-interface').classList.add('hidden');
+        if (this.role === 'admin') {
+            document.getElementById('attendant-view').classList.add('hidden');
+            document.getElementById('admin-view').classList.remove('hidden');
+            document.getElementById('admin-conversations').classList.remove('hidden');
+        } else {
+            document.getElementById('attendant-list').classList.remove('hidden');
+        }
+    },
+
+    handleAttendantEnter(e) { if(e.key === 'Enter') this.sendAttendantMessage(); },
+
+    sendAttendantMessage() {
+        const input = document.getElementById('attendant-message-input');
+        const content = input.value;
+        if (!content) return;
+
+        this.socket.emit('sendMessage', {
+            conversationId: this.currentConversationId,
+            content: content,
+            sender: 'attendant'
+        });
+        input.value = '';
+    },
+    
+    async summarize(conversationId) {
+        try {
+            const res = await fetch(`${API_URL}/summary/${conversationId}`);
+            const data = await res.json();
+            alert(`Resumo da Conversa:\n\n${data.summary}`);
+        } catch(e) { alert('Erro ao gerar resumo'); }
+    },
+
+    /* --- ADMIN: PROMPTS --- */
+    showAdminTab(tab) {
+        document.getElementById('tab-conv').classList.remove('active');
+        document.getElementById('tab-prompts').classList.remove('active');
+        document.getElementById(`tab-${tab === 'conversations' ? 'conv' : 'prompts'}`).classList.add('active');
+
+        document.getElementById('admin-conversations').classList.add('hidden');
+        document.getElementById('admin-prompts').classList.add('hidden');
+        document.getElementById(`admin-${tab}`).classList.remove('hidden');
+        
+        if(tab === 'prompts') this.loadPrompts();
+    },
+
+    async loadPrompts() {
+        try {
+            const res = await fetch(`${API_URL}/prompts`);
+            const prompts = await res.json();
+            const container = document.getElementById('prompts-list');
+            container.innerHTML = '';
+            
+            prompts.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `
+                    <div>
+                        <strong>${p.title}</strong> ${p.isActive ? '(Ativo)' : ''}<br>
+                        <small>${p.content.substring(0, 50)}...</small>
+                    </div>
+                    <div>
+                        <button onclick="app.editPrompt('${p.id}')">Editar</button>
+                        <button class="danger" onclick="app.deletePrompt('${p.id}')">X</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        } catch(e) { console.error(e); }
+    },
+
+    showCreatePrompt() {
+        document.getElementById('prompt-id').value = '';
+        document.getElementById('prompt-title').value = '';
+        document.getElementById('prompt-content').value = '';
+        document.getElementById('prompt-active').checked = true;
+        document.getElementById('form-title').innerText = 'Novo Prompt';
+        document.getElementById('prompt-form').classList.remove('hidden');
+    },
+
+    async editPrompt(id) {
+        // Fetch details first
+        const res = await fetch(`${API_URL}/prompts/${id}`);
+        const p = await res.json();
+        
+        document.getElementById('prompt-id').value = p.id;
+        document.getElementById('prompt-title').value = p.title;
+        document.getElementById('prompt-content').value = p.content;
+        document.getElementById('prompt-active').checked = p.isActive;
+        document.getElementById('form-title').innerText = 'Editar Prompt';
+        document.getElementById('prompt-form').classList.remove('hidden');
+    },
+
+    cancelPrompt() {
+        document.getElementById('prompt-form').classList.add('hidden');
+    },
+
+    async savePrompt() {
+        const id = document.getElementById('prompt-id').value;
+        const data = {
+            title: document.getElementById('prompt-title').value,
+            content: document.getElementById('prompt-content').value,
+            isActive: document.getElementById('prompt-active').checked
+        };
+
+        const method = id ? 'PATCH' : 'POST';
+        const url = id ? `${API_URL}/prompts/${id}` : `${API_URL}/prompts`;
+
+        await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        this.cancelPrompt();
+        this.loadPrompts();
+    },
+
+    async deletePrompt(id) {
+        if(confirm('Deletar este prompt?')) {
+            await fetch(`${API_URL}/prompts/${id}`, { method: 'DELETE' });
+            this.loadPrompts();
+        }
+    }
+};
+
+app.init();
+</script>
+</body>
+</html>
