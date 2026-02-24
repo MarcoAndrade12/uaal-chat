@@ -123,8 +123,13 @@ export class ChatService {
 
     if (!conversation || !conversation.isAiEnabled) return null; // Stop if disabled
 
+    this.logger.log(`Iniciando geração de resposta IA para conversa: ${conversationId}`);
+    
     // Find active prompt
     const promptConfig = await this.promptsService.findActive();
+    if (!promptConfig) {
+        this.logger.warn('Nenhum prompt ativo encontrado. Usando instrução padrão.');
+    }
     let systemInstruction = promptConfig ? promptConfig.content : 'You are a helpful assistant.';
 
     // Inject Client Name if available
@@ -159,6 +164,7 @@ export class ChatService {
             const text = response.text();
 
             if (text) {
+                this.logger.log(`IA gerou resposta (${modelName}): ${text.substring(0, 50)}...`);
                 return this.sendMessage(conversationId, text, 'ai');
             }
         } catch (error) {
