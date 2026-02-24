@@ -20,4 +20,13 @@ export class ChatController {
   getConversation(@Param('id') id: string) {
     return this.chatService.findConversation(id);
   }
+
+  @Post('message')
+  sendMessage(
+    @Body('conversationId') conversationId: string,
+    @Body('content') content: string,
+    @Body('sender') sender: 'attendant' | 'ai' | 'client',
+  ) {
+    return this.chatService.sendMessage(conversationId, content, sender);
+  }
 }
