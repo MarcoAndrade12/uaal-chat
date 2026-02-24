@@ -271,12 +271,22 @@ const app = {
                     </div>
                     <div>
                         <button onclick="app.openAttendantChat('${c.id}', '${c.clientId}')">Abrir Chat</button>
+                        <button class="danger" onclick="app.resetChat('${c.clientId}')">Reiniciar</button>
                         ${this.role === 'admin' ? `<button class="secondary" onclick="app.summarize('${c.id}')">Resumo AI</button>` : ''}
                     </div>
                 `;
                 container.appendChild(div);
             });
         } catch (e) { console.error(e); }
+    },
+
+    async resetChat(clientId) {
+        if (!confirm(`Deseja realmente apagar e reiniciar o chat para o número ${clientId}?`)) return;
+        try {
+            await fetch(`${API_URL}/chat/conversation/${clientId}`, { method: 'DELETE' });
+            alert('Conversa reiniciada com sucesso! O próximo contato do cliente iniciará um novo fluxo.');
+            this.loadConversations();
+        } catch (e) { alert('Erro ao reiniciar conversa'); }
     },
 
     openAttendantChat(conversationId, clientId) {

@@ -1,5 +1,5 @@
 
-import { Controller, Post, Get, Body, Param } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Delete } from '@nestjs/common';
 import { ChatService } from './chat.service';
 
 @Controller('chat')
@@ -28,5 +28,11 @@ export class ChatController {
     @Body('sender') sender: 'attendant' | 'ai' | 'client',
   ) {
     return this.chatService.sendMessage(conversationId, content, sender);
+  }
+
+  @Delete('conversation/:clientId')
+  async resetConversation(@Param('clientId') clientId: string) {
+    await this.chatService.resetConversationByClientId(clientId);
+    return { message: 'Conversation reset successfully' };
   }
 }

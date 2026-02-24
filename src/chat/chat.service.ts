@@ -52,6 +52,17 @@ export class ChatService {
     return this.conversationRepository.save(conversation);
   }
 
+  async resetConversationByClientId(clientId: string): Promise<void> {
+    const active = await this.conversationRepository.findOne({
+      where: { clientId, status: 'active' },
+    });
+    if (active) {
+      active.status = 'closed';
+      await this.conversationRepository.save(active);
+      this.logger.log(`Conversa ativa para ${clientId} foi encerrada para reinício.`);
+    }
+  }
+
   async findAll() {
     return this.conversationRepository.find({
       order: { createdAt: 'DESC' },
