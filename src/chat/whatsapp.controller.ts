@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ChatService } from './chat.service';
 import type { Response } from 'express';
 
-@Controller('chat/whatsapp')
+@Controller()
 export class WhatsappController {
   private readonly logger = new Logger(WhatsappController.name);
   private readonly verifyToken: string;
@@ -22,11 +22,14 @@ export class WhatsappController {
     @Query('hub.challenge') challenge: string,
     @Res() res: Response,
   ) {
+    this.logger.log(`Webhook verification attempt: mode=${mode}, token=${token}`);
+
     if (mode === 'subscribe' && token === this.verifyToken) {
-      this.logger.log('Webhook verified');
-      return res.status(HttpStatus.OK).send(challenge);
+      this.logger.log('Webhook verified successfully');
+      // Importante: Enviar o challenge como texto puro
+      return res.status(HttpStatus.OK).set('Content-Type', 'text/plain').send(challenge);
     } else {
-      this.logger.error('Webhook verification failed');
+      this.logger.warn(`Webhook verification failed. Expected token: ${this.verifyToken}`);
       return res.sendStatus(HttpStatus.FORBIDDEN);
     }
   }
