@@ -36,36 +36,47 @@ export class WhatsappController {
 
   @Post('webhook')
   async handleWebhook(@Body() body: any, @Res() res: Response) {
-    // Log body for debugging
-    // this.logger.debug(`Received WhatsApp webhook: ${JSON.stringify(body)}`);
-
     if (body.object === 'whatsapp_business_account') {
-      for (const entry of body.entry) {
-        for (const change of entry.changes) {
-          if (change.value.messages) {
-            for (const message of change.value.messages) {
-              if (message.type === 'text') {
-                const from = message.from; // Phone number
-                const text = message.text.body;
-                const contact = change.value.contacts?.[0];
+      if (body.entry && body.entry[0].changes && body.entry[0].changes[0].value.messages) {
+        for (const entry of body.entry) {
+          for (const change of entry.changes) {
+            const value = change.value;
+            if (value.messages) {
+              for (const message of value.messages) {
+                const from = message.from; // Número do cliente
+                const contact = value.contacts?.[0];
                 const senderName = contact?.profile?.name || 'WhatsApp User';
+                
+                let text = '';
+                if (message.type === 'text') {
+                  text = message.text.body;
+                } else {
+                  text = `[Mídia/Outro recebido: ${message.type}]`;
+                }
 
-                this.logger.log(`Received message from ${from}: ${text}`);
+                this.logger.log(`Mensagem recebida de ${from}: ${text}`);
 
-                // Process conversation and AI response
                 try {
-                  // 1. Create or get conversation (clientId is the phone number)
+                  // AQUI está a lógica solicitada:
+                  
+                  // 1. Salvar no Banco (PostgreSQL)
+                  // Primeiramente criamos/obtemos a conversa usando o número do WhatsApp como clientId
                   const conversation = await this.chatService.createConversation(from, senderName);
                   
-                  // 2. Save client message
+                  // Depois salvamos a mensagem do cliente no banco
                   await this.chatService.sendMessage(conversation.id, text, 'client');
 
-                  // 3. Trigger AI response asnychronously
-                  // We don't await this to respond to Meta quickly (avoid timeouts)
-                  this.chatService.generateAIResponse(conversation.id);
+                  // 2. Chamar a IA se o status for 'IA' (isAiEnabled no nosso sistema)
+                  // generateAIResponse já verifica internamente se conversation.isAiEnabled é true
+                  if (conversation.isAiEnabled) {
+                    this.logger.log(`Acionando resposta da IA para ${from}`);
+                    this.chatService.generateAIResponse(conversation.id);
+                  } else {
+                    this.logger.log(`IA desativada para a conversa ${conversation.id}. Aguardando humano.`);
+                  }
 
                 } catch (error) {
-                  this.logger.error(`Error processing WhatsApp message: ${error.message}`);
+                  this.logger.error(`Erro ao processar mensagem do WhatsApp: ${error.message}`);
                 }
               }
             }

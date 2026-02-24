@@ -1,74 +1,54 @@
-# Guia do Sistema IA-Chat
+# Guia do Sistema IA-Chat (WhatsApp Edition)
 
-Este guia explica como configurar e usar o novo sistema `ia-chat`.
+Este guia explica como configurar e usar o sistema `ia-chat` integrado à API oficial do WhatsApp da Meta.
 
-## Configuração
+## Configuração para Produção (Render.com)
 
 1.  **Variáveis de Ambiente**:
-    -   Copie `.env.example` para `.env` em `c:\Users\andra\Downloads\uaaldrive\ia-chat`.
-    -   Preencha suas credenciais do PostgreSQL e a `GEMINI_API_KEY` (obtenha no Google AI Studio).
+    Configure as seguintes variáveis no painel do Render:
+    -   `DATABASE_URL`: URL de conexão do PostgreSQL (com SSL ativado).
+    -   `GEMINI_API_KEY`: Sua chave do Google Gemini.
+    -   `WHATSAPP_ACCESS_TOKEN`: Token de acesso permanente da Meta.
+    -   `WHATSAPP_PHONE_NUMBER_ID`: ID do número de telefone comercial.
+    -   `WHATSAPP_VERIFY_TOKEN`: Token para validação do webhook (ex: `mchat-uaal_te5te-Marco$1201`).
 
-2.  **Dependências**:
-    -   Execute `npm install` dentro da pasta `ia-chat` (já realizado).
+2.  **Configuração do Webhook na Meta**:
+    -   **Callback URL**: `https://seu-app.onrender.com/webhook`
+    -   **Verify Token**: O mesmo definido em `WHATSAPP_VERIFY_TOKEN`.
+    -   **Campos**: Inscreva-se em `messages`.
 
-3.  **Rodar a Aplicação**:
-    -   Inicie o servidor de desenvolvimento: `npm run start:dev`
+## Fluxo de Uso
 
-## Frontend (Interface Web)
+### 1. Interação do Cliente
+Tudo acontece via WhatsApp. Quando o cliente envia uma mensagem:
+-   O sistema identifica o número de telefone.
+-   Cria ou recupera uma conversa automática.
+-   A IA Gemini responde diretamente no WhatsApp do cliente.
 
-Acesse o sistema pelo navegador em: `http://localhost:3000`
+### 2. Painel de Atendimento (HTTP API)
+Você pode usar a API para gerenciar as conversas ou intervir como humano.
 
-Selecione o perfil desejado:
--   **Cliente**: Inicia um chat com a IA.
--   **Atendente**: Visualiza conversas ativas e intervém.
--   **Admin**: Gerencia prompts e monitora conversas.
-
-## Funcionalidades e Uso
-
-### 1. Admin: Gerenciar Prompts
-Use estes endpoints para definir o comportamento da IA.
-
--   **Criar Prompt**: `POST /prompts`
+-   **Listar Conversas**: `GET /chat/conversations`
+-   **Ver Mensagens**: `GET /chat/conversation/:id`
+-   **Responder Manualmente**: `POST /chat/message`
     ```json
     {
-      "title": "Suporte Padrão",
-      "content": "Você é um assistente de suporte útil da UaalDrive. Seja conciso.",
-      "isActive": true
+      "conversationId": "uuid-da-conversa",
+      "content": "Olá, sou um atendente humano. Como posso ajudar?",
+      "sender": "attendant"
     }
     ```
--   **Listar Prompts**: `GET /prompts`
+    *Nota: Ao enviar como `attendant`, a IA será desativada para esta conversa automaticamente.*
 
-### 2. Chat: Cliente e IA
-O chat opera via WebSocket (Socket.io) e HTTP.
-
--   **Criar Conversa**: `POST /chat/conversation`
-    -   Corpo: `{ "clientId": "uuid-do-usuario" }`
-    -   Retorna: `{ "id": "uuid-da-conversa", ... }`
-
--   **Conexão WebSocket**:
-    -   Conecte em `http://localhost:3000` (ou sua porta).
-    -   Evento `joinConversation`: `{ "conversationId": "..." }`
-    -   Evento `sendMessage`:
-        ```json
-        {
-          "conversationId": "...",
-          "content": "Olá, preciso de ajuda",
-          "sender": "client"
-        }
-        ```
-    -   **Resposta da IA**: O servidor responderá automaticamente com um evento `message` onde `sender: "ai"`.
-
-### 3. Intervenção do Atendente
-Um atendente pode entrar na mesma sala e enviar mensagens.
--   Envie mensagem com `sender: "attendant"` via WebSocket.
-
-### 4. Resumo
-Gere um resumo de qualquer conversa.
-
+### 3. Resumos de Conversa
 -   **Obter Resumo**: `GET /summary/:conversationId`
-    -   Retorna (exemplo): `{ "summary": "O usuário perguntou sobre X..." }`
+    -   Gera um resumo inteligente usando IA sobre os pontos principais do atendimento.
 
-## Banco de Dados
-O sistema usa o mesmo banco de dados PostgreSQL do `uaaldrive-backend`.
--   Novas tabelas criadas: `chat_prompts`, `conversations`, `messages`.
--   É compatível com os `usuarios` existentes se você vincular (atualmente `clientId` é uma string, mas pode ser configurado como chave estrangeira `FK` para `usuarios`).
+### 4. Gestão de Prompts (Comportamento da IA)
+-   **Atualizar Regras**: `POST /prompts`
+    -   Aqui você define como a IA deve se comportar (ex: "Seja um vendedor cortês").
+
+## Comandos Úteis
+-   `npm run build`: Compila o projeto.
+-   `npm start`: Inicia o servidor em produção (usado pelo Render).
+-   `node test-whatsapp.js`: Script local para simular o recebimento de mensagens.

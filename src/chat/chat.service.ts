@@ -96,6 +96,12 @@ export class ChatService {
     }
 
     const savedMessage = await this.messageRepository.save(message);
+
+    // Deliver message via WhatsApp if it's from the system (AI or Attendant)
+    if (sender === 'ai' || sender === 'attendant') {
+        await this.whatsappService.sendMessage(conversation.clientId, content);
+    }
+
     return savedMessage;
   }
 
@@ -153,10 +159,7 @@ export class ChatService {
             const text = response.text();
 
             if (text) {
-                const aiMsg = await this.sendMessage(conversationId, text, 'ai');
-                // Send via WhatsApp
-                await this.whatsappService.sendMessage(conversation.clientId, text);
-                return aiMsg;
+                return this.sendMessage(conversationId, text, 'ai');
             }
         } catch (error) {
             this.logger.warn(`Failed to generate content with model ${modelName}: ${error.message}`);

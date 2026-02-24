@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IA Chat System</title>
+    <title>IA Chat System (WhatsApp)</title>
     <style>
         body { font-family: sans-serif; margin: 0; padding: 20px; background: #f0f2f5; }
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -17,9 +17,9 @@
         .role-btn { width: 100%; margin: 10px 0; padding: 15px; font-size: 1.2em; }
         
         /* Chat Styles */
-        #chat-history { height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; background: #fafafa; border-radius: 4px; }
+        #chat-history, #attendant-chat-history { height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; background: #fafafa; border-radius: 4px; display: flex; flex-direction: column; }
         .message { margin-bottom: 10px; padding: 8px 12px; border-radius: 12px; max-width: 70%; word-wrap: break-word; }
-        .message.client { background: #007bff; color: white; align-self: flex-end; margin-left: auto; }
+        .message.client { background: #007bff; color: white; align-self: flex-end; }
         .message.ai { background: #e9ecef; color: black; align-self: flex-start; }
         .message.attendant { background: #28a745; color: white; align-self: flex-start; }
         .message-meta { font-size: 0.75em; opacity: 0.8; margin-bottom: 2px; }
@@ -33,27 +33,27 @@
         .tab-nav button { background: none; color: #666; border-radius: 0; margin: 0; }
         .tab-nav button.active { border-bottom: 2px solid #007bff; color: #007bff; font-weight: bold; }
     </style>
-    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
 
 <div class="container" id="app">
     <!-- 1. Role Selection -->
     <div id="role-selection">
-        <h1>Bem-vindo ao IA Chat</h1>
-        <p>Selecione seu acesso:</p>
-        <button class="role-btn" onclick="app.selectRole('client')">Cliente</button>
-        <button class="role-btn secondary" onclick="app.selectRole('attendant')">Atendente</button>
-        <button class="role-btn danger" onclick="app.selectRole('admin')">Admin</button>
+        <h1>Bem-vindo ao IA Chat (WhatsApp)</h1>
+        <p>Selecione seu acesso ao painel de gerenciamento:</p>
+        <button class="role-btn secondary" onclick="app.selectRole('attendant')">Painel do Atendente</button>
+        <button class="role-btn danger" onclick="app.selectRole('admin')">Painel Administrativo</button>
+        <hr>
+        <button class="role-btn" onclick="app.selectRole('client')" style="background: #25D366;">Simulador de WhatsApp (Teste)</button>
     </div>
 
-    <!-- 2. Client View -->
+    <!-- 2. Client View (Simulator) -->
     <div id="client-view" class="hidden">
-        <h2>Área do Cliente</h2>
+        <h2>Simulador de WhatsApp</h2>
         <div id="client-login">
-            <label>Seu ID (Email ou Nome):</label>
-            <input type="text" id="client-id-input" placeholder="ex: usuario@email.com">
-            <button onclick="app.startClientChat()">Iniciar Chat</button>
+            <label>Número do WhatsApp do Cliente (Ex: 5511999999999):</label>
+            <input type="text" id="client-id-input" placeholder="5511999999999">
+            <button onclick="app.startClientChat()">Simular Entrada</button>
         </div>
         <div id="client-chat-interface" class="hidden">
             <div id="chat-history"></div>
@@ -68,17 +68,17 @@
 
     <!-- 3. Attendant View -->
     <div id="attendant-view" class="hidden">
-        <h2>Área do Atendente</h2>
+        <h2>Painel do Atendente</h2>
         <div id="attendant-list" class="hidden">
-            <h3>Conversas Ativas</h3>
+            <h3>Conversas Ativas (WhatsApp)</h3>
             <button onclick="app.loadConversations()">Atualizar Lista</button>
             <div id="conversations-list"></div>
         </div>
         <div id="attendant-chat-interface" class="hidden">
-            <h3>Chat: <span id="current-chat-client"></span></h3>
-            <div id="attendant-chat-history" style="height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fafafa;"></div>
+            <h3>Visualizando: <span id="current-chat-client"></span></h3>
+            <div id="attendant-chat-history"></div>
             <div style="display: flex; gap: 10px; margin-top: 10px;">
-                <input type="text" id="attendant-message-input" placeholder="Intervir na conversa..." onkeypress="app.handleAttendantEnter(event)">
+                <input type="text" id="attendant-message-input" placeholder="Responder para o WhatsApp do cliente..." onkeypress="app.handleAttendantEnter(event)">
                 <button onclick="app.sendAttendantMessage()">Enviar</button>
             </div>
             <button class="secondary" onclick="app.closeAttendantChat()" style="margin-top: 10px;">Voltar para Lista</button>
@@ -88,22 +88,20 @@
 
     <!-- 4. Admin View -->
     <div id="admin-view" class="hidden">
-        <h2>Painel Admin</h2>
+        <h2>Painel Administrativo</h2>
         <div class="tab-nav">
             <button onclick="app.showAdminTab('conversations')" id="tab-conv" class="active">Conversas</button>
             <button onclick="app.showAdminTab('prompts')" id="tab-prompts">Prompts IA</button>
         </div>
 
-        <!-- Admin: Conversations -->
         <div id="admin-conversations">
-            <h3>Monitoramento de Conversas</h3>
+            <h3>Monitoramento das Conversas</h3>
             <button onclick="app.loadConversations()">Atualizar</button>
             <div id="admin-conversations-list"></div>
         </div>
 
-        <!-- Admin: Prompts -->
         <div id="admin-prompts" class="hidden">
-            <h3>Gerenciar Prompts</h3>
+            <h3>Gerenciar Prompts do Gemini</h3>
             <button onclick="app.showCreatePrompt()">+ Novo Prompt</button>
             <div id="prompts-list"></div>
             
@@ -111,9 +109,9 @@
                 <h4 id="form-title">Novo Prompt</h4>
                 <input type="hidden" id="prompt-id">
                 <input type="text" id="prompt-title" placeholder="Título do Prompt">
-                <textarea id="prompt-content" rows="5" placeholder="Conteúdo do Prompt (System Message)"></textarea>
+                <textarea id="prompt-content" rows="5" placeholder="Conteúdo do Prompt (Ex: Você é um assistente da loja X...)"></textarea>
                 <label>
-                    <input type="checkbox" id="prompt-active"> Ativo
+                    <input type="checkbox" id="prompt-active"> Prompt Ativo
                 </label>
                 <div style="margin-top: 10px;">
                     <button onclick="app.savePrompt()">Salvar</button>
@@ -126,20 +124,16 @@
 </div>
 
 <script>
-const API_URL = 'http://localhost:3000';
+const API_URL = ''; // Vazio para usar o host atual (Render)
 
 const app = {
-    socket: null,
     role: null,
     currentConversationId: null,
     clientId: null,
+    pollingInterval: null,
 
     init() {
-        this.socket = io(API_URL);
-        
-        this.socket.on('message', (message) => {
-            this.appendMessage(message);
-        });
+        console.log('App inicializado - Fluxo HTTP WhatsApp');
     },
 
     selectRole(role) {
@@ -148,27 +142,26 @@ const app = {
         document.getElementById(`${role}-view`).classList.remove('hidden');
         
         if (role === 'attendant' || role === 'admin') {
-            document.getElementById('attendant-list').classList.remove('hidden'); // For attendant
+            document.getElementById('attendant-list').classList.remove('hidden'); 
             this.loadConversations();
             if (role === 'admin') this.loadPrompts();
         }
     },
 
     reset() {
+        this.stopPolling();
         this.role = null;
         this.currentConversationId = null;
         document.querySelectorAll('.container > div').forEach(div => div.classList.add('hidden'));
         document.getElementById('role-selection').classList.remove('hidden');
-        // socket disconnect/reconnect logic if needed
     },
 
-    /* --- CLIENT LOGIC --- */
+    /* --- CLIENT LOGIC (SIMULATOR) --- */
     async startClientChat() {
         const clientId = document.getElementById('client-id-input').value;
-        if (!clientId) return alert('Digite um ID');
+        if (!clientId) return alert('Digite um Número');
         
         this.clientId = clientId;
-        // Create conversation API
         try {
             const res = await fetch(`${API_URL}/chat/conversation`, {
                 method: 'POST',
@@ -181,65 +174,58 @@ const app = {
             document.getElementById('client-login').classList.add('hidden');
             document.getElementById('client-chat-interface').classList.remove('hidden');
             
-            this.joinSocketRoom(data.id);
+            this.startPolling(data.id);
             this.loadMessages(data.id, 'chat-history');
         } catch (e) {
             console.error(e);
-            alert('Erro ao iniciar chat');
+            alert('Erro ao carregar conversa');
         }
-    },
-
-    joinSocketRoom(conversationId) {
-        this.socket.emit('joinConversation', { conversationId });
     },
 
     handleEnter(e) { if(e.key === 'Enter') this.sendMessage(); },
 
-    sendMessage() {
+    async sendMessage() {
         const input = document.getElementById('message-input');
         const content = input.value;
         if (!content) return;
 
-        this.socket.emit('sendMessage', {
-            conversationId: this.currentConversationId,
-            content: content,
-            sender: 'client'
-        });
-        input.value = '';
+        try {
+            await fetch(`${API_URL}/chat/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    conversationId: this.currentConversationId,
+                    content: content,
+                    sender: 'client'
+                })
+            });
+            input.value = '';
+            this.loadMessages(this.currentConversationId, 'chat-history');
+        } catch (e) {
+            alert('Erro ao enviar');
+        }
     },
 
     leaveChat() {
+        this.stopPolling();
         this.currentConversationId = null;
         document.getElementById('client-chat-interface').classList.add('hidden');
         document.getElementById('client-login').classList.remove('hidden');
     },
 
-    /* --- SHARED CHAT LOGIC --- */
-    appendMessage(msg) {
-        // Appends to BOTH views if active
-        // Only append if it belongs to current conversation
-        if (msg.conversation && msg.conversation.id !== this.currentConversationId) return; // Note: WebSocket msg might not have full conversation obj, need to check structure.
-        // Actually the backend emits just the message object. Let's assume msg.conversationId or similar.
-        // Wait, backend: this.server.to(data.conversationId).emit('message', message);
-        // Message entity has conversationId.
-        
-        if (this.currentConversationId && msg.conversationId === this.currentConversationId) {
-             const div = document.createElement('div');
-             div.className = `message ${msg.sender}`;
-             div.innerHTML = `<div class="message-meta">${msg.sender.toUpperCase()}</div>${msg.content}`;
-             
-             if (this.role === 'client') {
-                 const container = document.getElementById('chat-history');
-                 container.appendChild(div);
-                 container.scrollTop = container.scrollHeight;
-             } else {
-                 const container = document.getElementById('attendant-chat-history');
-                 if( !container.classList.contains('hidden')) {
-                     container.appendChild(div.cloneNode(true));
-                     container.scrollTop = container.scrollHeight;
-                 }
-                 // If simulated specific chat container... reusing checks
-             }
+    /* --- SHARED POLLING LOGIC --- */
+    startPolling(conversationId) {
+        this.stopPolling();
+        this.pollingInterval = setInterval(() => {
+            const containerId = this.role === 'client' ? 'chat-history' : 'attendant-chat-history';
+            this.loadMessages(conversationId, containerId);
+        }, 3000);
+    },
+
+    stopPolling() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
         }
     },
     
@@ -248,10 +234,12 @@ const app = {
             const res = await fetch(`${API_URL}/chat/conversation/${conversationId}`);
             const data = await res.json();
             const container = document.getElementById(containerId);
-            container.innerHTML = '';
             
-            // Sort by date just in case
-            const messages = data.messages || []; // Backend already sorts
+            const currentCount = container.children.length;
+            if (data.messages && data.messages.length === currentCount) return;
+
+            container.innerHTML = '';
+            const messages = data.messages || [];
             
             messages.forEach(msg => {
                 const div = document.createElement('div');
@@ -279,11 +267,11 @@ const app = {
                 div.innerHTML = `
                     <div>
                         <strong>Cliente:</strong> ${c.clientId} <br>
-                        <small>Status: ${c.status} | Data: ${new Date(c.createdAt).toLocaleDateString()}</small>
+                        <small>IA: ${c.isAiEnabled ? 'Ativa' : 'Pausada (Falar com Humano)'}</small>
                     </div>
                     <div>
-                        <button onclick="app.openAttendantChat('${c.id}', '${c.clientId}')">Abrir</button>
-                        ${this.role === 'admin' ? `<button class="secondary" onclick="app.summarize('${c.id}')">Resumo</button>` : ''}
+                        <button onclick="app.openAttendantChat('${c.id}', '${c.clientId}')">Abrir Chat</button>
+                        ${this.role === 'admin' ? `<button class="secondary" onclick="app.summarize('${c.id}')">Resumo AI</button>` : ''}
                     </div>
                 `;
                 container.appendChild(div);
@@ -295,32 +283,24 @@ const app = {
         this.currentConversationId = conversationId;
         document.getElementById('current-chat-client').innerText = clientId;
         
-        // Hide list, show chat
+        const attendantView = document.getElementById('attendant-view');
+        const adminView = document.getElementById('admin-view');
+        
         if (this.role === 'attendant') {
             document.getElementById('attendant-list').classList.add('hidden');
-            document.getElementById('attendant-chat-interface').classList.remove('hidden');
         } else {
-            // Admin reusing attendant chat interface for simplicity, or create separate. 
-            // Let's reuse attendant-view parts or dynamic modal.
-            // For simplicity in this "arquivo baixo", let's misuse the attendant view slightly or clone logic.
-            // Actually, admin usually just monitors. But let's allow intervention.
-             document.getElementById('admin-conversations').classList.add('hidden');
-             document.getElementById('attendant-chat-interface').classList.remove('hidden');
-             // Move attendant chat interface to be visible globally or just append?
-             // It's inside attendant-view. I'll just unhide it and hide admin-view temporarily? No, standard DOM structure.
-             // I will append the chat interface to admin view dynamically or just allow admin to switch to attendant mode.
-             // Easier: Just alert 'Role switched to Attendant for chat'.
-             // Or better: Re-use the UI.
-             document.getElementById('admin-view').classList.add('hidden');
-             document.getElementById('attendant-view').classList.remove('hidden');
+             adminView.classList.add('hidden');
+             attendantView.classList.remove('hidden');
              document.getElementById('attendant-list').classList.add('hidden');
         }
+        document.getElementById('attendant-chat-interface').classList.remove('hidden');
 
-        this.joinSocketRoom(conversationId);
+        this.startPolling(conversationId);
         this.loadMessages(conversationId, 'attendant-chat-history');
     },
 
     closeAttendantChat() {
+        this.stopPolling();
         this.currentConversationId = null;
         document.getElementById('attendant-chat-interface').classList.add('hidden');
         if (this.role === 'admin') {
@@ -334,24 +314,34 @@ const app = {
 
     handleAttendantEnter(e) { if(e.key === 'Enter') this.sendAttendantMessage(); },
 
-    sendAttendantMessage() {
+    async sendAttendantMessage() {
         const input = document.getElementById('attendant-message-input');
         const content = input.value;
         if (!content) return;
 
-        this.socket.emit('sendMessage', {
-            conversationId: this.currentConversationId,
-            content: content,
-            sender: 'attendant'
-        });
-        input.value = '';
+        try {
+            await fetch(`${API_URL}/chat/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    conversationId: this.currentConversationId,
+                    content: content,
+                    sender: 'attendant'
+                })
+            });
+            input.value = '';
+            // Forço o recarregamento imediato
+            this.loadMessages(this.currentConversationId, 'attendant-chat-history');
+        } catch (e) {
+            alert('Erro ao enviar mensagem para o WhatsApp');
+        }
     },
     
     async summarize(conversationId) {
         try {
             const res = await fetch(`${API_URL}/summary/${conversationId}`);
             const data = await res.json();
-            alert(`Resumo da Conversa:\n\n${data.summary}`);
+            alert(`Resumo Inteligente da Conversa:\n\n${data.summary}`);
         } catch(e) { alert('Erro ao gerar resumo'); }
     },
 
@@ -380,8 +370,8 @@ const app = {
                 div.className = 'list-item';
                 div.innerHTML = `
                     <div>
-                        <strong>${p.title}</strong> ${p.isActive ? '(Ativo)' : ''}<br>
-                        <small>${p.content.substring(0, 50)}...</small>
+                        <strong>${p.title}</strong> ${p.isActive ? '(Em Uso)' : ''}<br>
+                        <small>${p.content.substring(0, 60)}...</small>
                     </div>
                     <div>
                         <button onclick="app.editPrompt('${p.id}')">Editar</button>
@@ -403,7 +393,6 @@ const app = {
     },
 
     async editPrompt(id) {
-        // Fetch details first
         const res = await fetch(`${API_URL}/prompts/${id}`);
         const p = await res.json();
         
@@ -441,7 +430,7 @@ const app = {
     },
 
     async deletePrompt(id) {
-        if(confirm('Deletar este prompt?')) {
+        if(confirm('Tem certeza que deseja deletar este prompt?')) {
             await fetch(`${API_URL}/prompts/${id}`, { method: 'DELETE' });
             this.loadPrompts();
         }
